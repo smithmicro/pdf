@@ -1,0 +1,65 @@
+#!/usr/bin/node --unhandled-rejections=strict
+
+const puppeteer = require('puppeteer');
+const path = require("path");
+
+if (!process.argv[2]) {
+    console.error('Please specify a JIRA URL');
+    process.exit(1);
+}
+
+let url = process.argv[2];
+let filePath = path.basename(url) + '.pdf';
+let paperFormat = process.env.PAPER_FORMAT;
+let paperMargin = process.env.PAPER_MARGIN;
+
+(async() => {
+    console.log("Creating PDF for", url);
+
+    const browser = await puppeteer.launch({
+        args: [ '--no-sandbox', '--disable-setuid-sandbox' ]
+    });
+
+    const page = await browser.newPage();
+    await page.goto(url, { waitUntil: 'networkidle0' });
+
+    // detect if this page is Confluence or JIRA
+    const innerText = await page.$eval('*', (el) => el.innerText);
+
+    // defaults for Jira
+    var usernameSelector = '#login-form-username';
+    var passwordSelector = '#login-form-password';
+    var submitSelector =   '#login-form-submit';
+    var margin = {};
+    var login = false;
+
+    if (innerText.includes("Jira")) {
+        console.log("Jira detected");
+        login = true;
+    }
+    else if (innerText.includes("Confluence")) {
+        console.log("Confluence detected");
+        usernameSelector = '#os_username';
+        passwordSelector = '#os_password';
+        submitSelector =   '#loginButton';
+        margin = { top: paperMargin, right: paperMargin, bottom: paperMargin, left: paperMargin };
+        login = true;
+    }
+    else {
+        console.log("Neither Confluence or Jira detected.  No login support.");
+    }
+    if (login) {
+        await page.type(usernameSelector, process.env.ATL_USERNAME);
+        await page.type(passwordSelector, process.env.ATL_PASSWORD);
+
+        await Promise.all([
+            page.click(submitSelector),
+            page.waitForNavigation({ waitUntil: 'networkidle0' }),
+        ]);
+    }
+
+    await page.pdf({ path: filePath, format: paperFormat, margin: margin });
+    browser.close();
+
+    console.log(filePath);
+})();
