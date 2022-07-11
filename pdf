@@ -1,7 +1,14 @@
-#!/usr/local/bin/node --unhandled-rejections=strict
+#!/usr/bin/env node
 
 const puppeteer = require('puppeteer');
 const path = require("path");
+
+// https://nodejs.org/api/process.html#process_event_unhandledrejection
+// does the same as passing --unhandled-rejections=strict
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason)
+    process.exit(1)
+});
 
 if (!process.argv[2]) {
     console.error('Please specify a JIRA URL');
